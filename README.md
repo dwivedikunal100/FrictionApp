@@ -131,3 +131,119 @@ The `AccessibilityService` runs in the background. To prevent Android from killi
 - **Billing**: Google Play Billing Library 6.x
 - **Preferences**: DataStore
 - **Async**: Kotlin Coroutines + Flow
+
+
+---
+### PRD
+
+The "Friction" App: Monetizing Dopamine Detox
+
+The concept is simple: An app that makes opening addictive apps (like Instagram, TikTok, Twitter) annoying.
+
+When a user taps Instagram, your app intercepts it and puts up a "Wall". To get past the wall, the user has to do something slightly frustrating, like wait 10 seconds while doing a breathing exercise, or type out the sentence "I am choosing to waste my time." This type of app (look at "One Sec" or "Opal" on iOS) makes millions, goes viral easily because of the funny/aggressive prompts, and is very easy to build on Android.
+
+1. Feature Breakdown (The Funnel)
+
+The Free Tier (The Hook - Optimized for Virality)
+
+1 App Limit: They can only "protect" one app (usually Instagram or TikTok).
+
+Standard Friction: A 5-second breathing animation before the app opens.
+
+The "Roast" Screen: If they open the app more than 5 times in an hour, the app shows a passive-aggressive message (e.g., "Don't you have code to write?"). This is the highly shareable feature users will screenshot and post online.
+
+The Premium Tier ($4.99/mo or $29.99/year - The Money Maker)
+
+Unlimited Apps: Block/add friction to as many apps as they want.
+
+Hardcore Modes: * Math Mode: Solve a medium-difficulty math equation to open the app.
+
+Walk Mode: Walk 50 steps to unlock the app.
+
+Scheduling: "Strict Mode" during work hours (9 AM - 5 PM) where bypassing is impossible.
+
+Guilt Trip Analytics: A dashboard showing exactly how many hours of their life your app gave back to them this week.
+
+2. Generating UI Mocks
+
+Do not reinvent the wheel here. The app needs to look premium and minimal so people trust it enough to pay.
+
+Steal the UX Flow: Go to Mobbin.com. It’s a library of real-world app designs. Search for apps like Headspace, Opal, or Forest. Look at how they design their paywalls and settings screens.
+
+Mock it up: Use Figma (free).
+
+Use a UI Kit: Inside Figma, search the Community tab for the "Material 3 Design Kit". Just drag and drop the toggles, cards, and buttons.
+
+The Vibe: Keep it dark mode by default. Use minimal text, lots of negative space, and a single accent color (like a bright neon green or stark white) so it looks sleek and modern.
+
+3. The End-to-End Build Process
+
+Here is the exact technical and launch path for a solo dev.
+
+Step 1: Core Tech & Architecture (Week 1)
+
+The Magic API: The core of this app relies on Android's AccessibilityService API and UsageStatsManager. This allows your app to detect when the user launches Instagram and instantly draw a screen over it.
+
+UI Stack: Use Kotlin + Jetpack Compose. It's the fastest way to build beautiful Android UIs right now.
+
+Storage: Room Database (local). Save their app preferences, bypass history, and screen time locally. No cloud backend needed. No AWS bills.
+
+Step 2: Build the MVP (Week 2-3)
+
+Build the onboarding flow (requesting Accessibility permissions is the biggest hurdle, make it clear why you need it).
+
+Implement the interception logic.
+
+Build the "Breathing" bypass screen.
+
+Crucial: Implement the Google Play Billing Library for the Premium tier immediately. Put the paywall right after they see their first "Time Saved" stat.
+
+Step 3: Closed Testing & App Store Optimization (Week 4)
+
+Google requires 20 testers for 14 days. You have 12k LinkedIn followers. Make a post asking for testers in exchange for lifetime premium. You'll get 100 signups in ten minutes.
+
+ASO (App Store Optimization): * Title: "Friction: App Blocker & Screen Time"
+
+Screenshots: Use Figma to create clean screenshots showing the exact pain point. "Stop Doomscrolling." "Reclaim 3 hours a day."
+
+Step 4: Marketing for Virality (The Launch)
+
+You don't run paid ads for this. You use short-form video.
+
+Make a 7-second screen recording showing someone trying to open TikTok, and your app popping up saying: "Solve 14 x 8 to rot your brain." * Post it on TikTok, Instagram Reels, and YouTube Shorts. The sheer relatable frustration of it makes people tag their friends.
+
+4. Your LinkedIn & Substack Content Strategy
+
+Just because this app isn't about SDE interviews doesn't mean you can't use it for your toinfinitescale audience. SDE-2s and SDE-3s are obsessed with productivity, side-hustles, and building products.
+
+Use the "Build in Public" angle to grow your newsletter while building the app.
+
+Week 1: The Product Mindset
+
+Saturday Substack: Title: "Why great SDEs build products, not just features (My side-hustle blueprint)."
+
+Angle: Talk about how moving from SDE-2 to SDE-3 requires "Product Sense." To build this sense, you are building an Android app from scratch that optimizes for revenue. Break down why you chose a productivity app over a complex SaaS.
+
+Sunday LinkedIn: * Hook: "Coding fast won't get you to SDE-3. Understanding what users actually pay for will."
+
+Body: Summarize the Substack. Explain the concept of the app (monetizing friction). Link the newsletter for the full technical breakdown.
+
+Wednesday LinkedIn: * Hook: "I just paid $25 for a Google Play account. Here is the exact tech stack I'm using to build an app in 3 weeks."
+
+Body: List Kotlin, Compose, Room DB, and the AccessibilityService API. Ask your audience if they have ever built a mobile app to scratch their own itch.
+
+Week 4: The Launch & Marketing
+
+Saturday Substack: Title: "The system design of a viral app (and how I launched it)."
+
+Angle: Break down the architecture (Accessibility Service limits, keeping battery usage low) and how you handled the Google Play testing requirements.
+
+Sunday LinkedIn: * Hook: "I just launched my first Android app. Here is how I got 20 beta testers in 10 minutes without spending a dime."
+
+Body: Talk about leveraging your audience. SDEs need to learn distribution, not just code.
+
+Wednesday LinkedIn:
+
+Hook: "The hardest part of building my app wasn't the code. It was the paywall."
+
+Body: A quick tactical tip on why engineers suck at monetization and how you designed a simple free vs. premium model.
