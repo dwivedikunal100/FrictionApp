@@ -3,6 +3,7 @@ package com.friction.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         billingManager = FrictionBillingManager(this)
         billingManager.initialize()
@@ -59,15 +61,7 @@ fun FrictionApp(
         composable("paywall") {
             PaywallScreen(
                 onSubscribe = { isAnnual ->
-                    val products = billingManager.products.value
-                    val productId = if (isAnnual)
-                        FrictionBillingManager.PRODUCT_ANNUAL
-                    else
-                        FrictionBillingManager.PRODUCT_MONTHLY
-                    val product = products.firstOrNull { it.productId == productId }
-                    if (product != null) {
-                        billingManager.launchBillingFlow(activity, product, isAnnual)
-                    }
+                    billingManager.openPlayStore()
                 },
                 onDismiss = { navController.popBackStack() }
             )

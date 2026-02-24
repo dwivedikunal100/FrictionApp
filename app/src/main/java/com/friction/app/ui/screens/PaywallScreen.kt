@@ -30,6 +30,7 @@ fun PaywallScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(FrictionColors.Background)
+            .systemBarsPadding()
             .padding(horizontal = 24.dp)
     ) {
         Spacer(modifier = Modifier.height(56.dp))
@@ -116,7 +117,7 @@ fun PaywallScreen(
             modifier = Modifier.fillMaxWidth().height(58.dp)
         ) {
             Text(
-                text = "START 3-DAY FREE TRIAL →",
+                text = "GO TO GOOGLE PLAY TO PAY →",
                 color = Color.Black,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 14.sp,
