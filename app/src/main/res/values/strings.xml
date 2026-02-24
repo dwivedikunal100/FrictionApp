@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Friction</string>
+    <string name="accessibility_service_description">Friction monitors when you open apps and helps you stay focused by adding intentional friction.</string>
+</resources>
