@@ -65,6 +65,8 @@ class FrictionWallActivity : ComponentActivity() {
         
         // Timer increases by 5s for each open today (5, 10, 15...)
         val timerDuration = 5 + (opensToday * 5)
+        
+        android.util.Log.d("FrictionWall", "Wall opened for $targetPackage. Opens today: $opensToday, Timer: ${timerDuration}s")
 
         setContent {
             FrictionTheme {
@@ -77,11 +79,33 @@ class FrictionWallActivity : ComponentActivity() {
                     initialTimerSeconds = timerDuration,
                     onAllowAccess = {
                         val timeSpent = System.currentTimeMillis() - wallStartTime
+                        android.util.Log.d("FrictionWall", "onAllowAccess called for $targetPackage")
+                        
+                        // Record the successful interception event
+                        val repo = AppRepository.getInstance(applicationContext)
+                        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+                        scope.launch {
+                            repo.recordInterception(
+                                com.friction.app.data.model.InterceptionEvent(
+                                    packageName = targetPackage,
+                                    wasAllowed = true,
+                                    timeSpentOnWall = timeSpent,
+                                    frictionMode = frictionMode
+                                )
+                            )
+                        }
+
                         // Allow for 5 minutes
                         com.friction.app.accessibility.FrictionAccessibilityService.allowPackage(targetPackage)
-                        finish()
+                        
+                        // Small delay to show the "Success" state
+                        scope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                            delay(800)
+                            finish()
+                        }
                     },
                     onDismiss = {
+                        android.util.Log.d("FrictionWall", "Wall dismissed for $targetPackage")
                         finish()
                     }
                 )
@@ -101,16 +125,31 @@ fun FrictionWallScreen(
     onAllowAccess: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var isSolved by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(FrictionColors.Background),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 32.dp)
-        ) {
+        if (isSolved) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "✓", fontSize = 80.sp, color = FrictionColors.Accent)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "ACCESS GRANTED",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    letterSpacing = 4.sp,
+                    color = FrictionColors.Accent
+                )
+            }
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            ) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // "Intercepted" label
@@ -153,10 +192,32 @@ fun FrictionWallScreen(
             // The friction challenge
             when {
                 isStrictMode -> StrictModeBlock()
-                frictionMode == FrictionMode.BREATHING -> BreathingChallenge(seconds = initialTimerSeconds, onComplete = onAllowAccess)
-                frictionMode == FrictionMode.MATH -> MathChallenge(onComplete = onAllowAccess)
-                frictionMode == FrictionMode.TYPING -> TypingChallenge(onComplete = onAllowAccess)
-                else -> BreathingChallenge(seconds = initialTimerSeconds, onComplete = onAllowAccess)
+                frictionMode == FrictionMode.BREATHING -> BreathingChallenge(
+                    seconds = initialTimerSeconds, 
+                    onComplete = {
+                        isSolved = true
+                        onAllowAccess()
+                    }
+                )
+                frictionMode == FrictionMode.MATH -> MathChallenge(
+                    onComplete = {
+                        isSolved = true
+                        onAllowAccess()
+                    }
+                )
+                frictionMode == FrictionMode.TYPING -> TypingChallenge(
+                    onComplete = {
+                        isSolved = true
+                        onAllowAccess()
+                    }
+                )
+                else -> BreathingChallenge(
+                    seconds = initialTimerSeconds, 
+                    onComplete = {
+                        isSolved = true
+                        onAllowAccess()
+                    }
+                )
             }
 
             // Roast message (if opened too many times)
@@ -173,7 +234,10 @@ fun FrictionWallScreen(
                     text = "I don't care, let me in →",
                     fontSize = 12.sp,
                     color = FrictionColors.Muted,
-                    modifier = Modifier.clickable { onAllowAccess() }
+                    modifier = Modifier.clickable { 
+                        isSolved = true
+                        onAllowAccess() 
+                    }
                 )
             }
         }
