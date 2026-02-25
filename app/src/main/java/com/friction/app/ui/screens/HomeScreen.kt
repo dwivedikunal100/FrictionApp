@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,38 +31,33 @@ import com.friction.app.data.model.ProtectedApp
 import com.friction.app.data.repository.AppRepository
 import com.friction.app.ui.theme.FrictionColors
 import com.friction.app.ui.theme.FrictionTheme
+import com.friction.app.utils.PermissionUtils
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
-
-import com.friction.app.utils.PermissionUtils
 
 class HomeViewModel(private val repository: AppRepository) : ViewModel() {
 
-    val protectedApps: StateFlow<List<ProtectedApp>> = repository.getAllApps()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val protectedApps: StateFlow<List<ProtectedApp>> =
+            repository
+                    .getAllApps()
+                    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     var timeSavedToday by mutableLongStateOf(0L)
         private set
 
     init {
-        viewModelScope.launch {
-            timeSavedToday = repository.getTimeSavedToday()
-        }
+        viewModelScope.launch { timeSavedToday = repository.getTimeSavedToday() }
     }
 
     fun toggleApp(packageName: String, enabled: Boolean) {
-        viewModelScope.launch {
-            repository.toggleApp(packageName, enabled)
-        }
+        viewModelScope.launch { repository.toggleApp(packageName, enabled) }
     }
 
     fun removeApp(app: ProtectedApp) {
-        viewModelScope.launch {
-            repository.removeApp(app)
-        }
+        viewModelScope.launch { repository.removeApp(app) }
     }
 }
 
@@ -69,52 +65,50 @@ class HomeViewModel(private val repository: AppRepository) : ViewModel() {
 
 @Composable
 fun HomeScreen(
-    onNavigateToAddApp: () -> Unit,
-    onNavigateToPaywall: () -> Unit,
-    viewModel: HomeViewModel
+        onNavigateToAddApp: () -> Unit,
+        onNavigateToPaywall: () -> Unit,
+        viewModel: HomeViewModel
 ) {
     val apps by viewModel.protectedApps.collectAsState()
     val context = LocalContext.current
 
     FrictionTheme {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(FrictionColors.Background)
-                .padding(horizontal = 24.dp)
+                modifier =
+                        Modifier.fillMaxSize()
+                                .background(FrictionColors.Background)
+                                .padding(horizontal = 24.dp)
         ) {
             Spacer(modifier = Modifier.height(56.dp))
 
             // Top bar
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "friction",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 22.sp,
-                    color = FrictionColors.Accent,
-                    letterSpacing = (-1).sp
+                        text = "friction",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 22.sp,
+                        color = FrictionColors.Accent,
+                        letterSpacing = (-1).sp
                 )
                 Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(FrictionColors.Surface, CircleShape)
-                        .border(1.dp, FrictionColors.Border, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("👤", fontSize = 16.sp)
-                }
+                        modifier =
+                                Modifier.size(36.dp)
+                                        .background(FrictionColors.Surface, CircleShape)
+                                        .border(1.dp, FrictionColors.Border, CircleShape),
+                        contentAlignment = Alignment.Center
+                ) { Text("👤", fontSize = 16.sp) }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // Time saved card
             TimeSavedCard(
-                timeSavedMs = viewModel.timeSavedToday,
-                appCount = apps.count { it.isEnabled }
+                    timeSavedMs = viewModel.timeSavedToday,
+                    appCount = apps.count { it.isEnabled }
             )
 
             // Accessibility service warning (if not enabled)
@@ -127,21 +121,18 @@ fun HomeScreen(
 
             // Protected apps header
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "PROTECTED APPS",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    letterSpacing = 3.sp,
-                    color = FrictionColors.Muted
+                        text = "PROTECTED APPS",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        letterSpacing = 3.sp,
+                        color = FrictionColors.Muted
                 )
-                IconButton(
-                    onClick = onNavigateToAddApp,
-                    modifier = Modifier.size(32.dp)
-                ) {
+                IconButton(onClick = onNavigateToAddApp, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Add, "Add app", tint = FrictionColors.Accent)
                 }
             }
@@ -154,10 +145,10 @@ fun HomeScreen(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(apps, key = { it.packageName }) { app ->
                         AppRow(
-                            app = app,
-                            onToggle = { viewModel.toggleApp(app.packageName, it) },
-                            onUpgrade = onNavigateToPaywall,
-                            onRemove = { viewModel.removeApp(app) }
+                                app = app,
+                                onToggle = { viewModel.toggleApp(app.packageName, it) },
+                                onUpgrade = onNavigateToPaywall,
+                                onRemove = { viewModel.removeApp(app) }
                         )
                     }
                 }
@@ -173,39 +164,39 @@ fun TimeSavedCard(timeSavedMs: Long, appCount: Int) {
     val hours = TimeUnit.MILLISECONDS.toMinutes(timeSavedMs) / 60f
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.fillMaxWidth()
+            colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "TIME SAVED TODAY",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                letterSpacing = 3.sp,
-                color = FrictionColors.Muted
+                    text = "TIME SAVED TODAY",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    letterSpacing = 3.sp,
+                    color = FrictionColors.Muted
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "%.1f".format(hours),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 48.sp,
-                    color = FrictionColors.Accent,
-                    lineHeight = 48.sp
+                        text = "%.1f".format(hours),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 48.sp,
+                        color = FrictionColors.Accent,
+                        lineHeight = 48.sp
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "hrs",
-                    fontSize = 16.sp,
-                    color = FrictionColors.Muted,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                        text = "hrs",
+                        fontSize = 16.sp,
+                        color = FrictionColors.Muted,
+                        modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
             Text(
-                text = "$appCount apps protected · keep going",
-                fontSize = 12.sp,
-                color = FrictionColors.Muted
+                    text = "$appCount apps protected · keep going",
+                    fontSize = 12.sp,
+                    color = FrictionColors.Muted
             )
         }
     }
@@ -213,55 +204,61 @@ fun TimeSavedCard(timeSavedMs: Long, appCount: Int) {
 
 @Composable
 fun AppRow(
-    app: ProtectedApp,
-    onToggle: (Boolean) -> Unit,
-    onUpgrade: () -> Unit,
-    onRemove: () -> Unit
+        app: ProtectedApp,
+        onToggle: (Boolean) -> Unit,
+        onUpgrade: () -> Unit,
+        onRemove: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth()
+            colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             // App icon placeholder
             Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(FrictionColors.Surface2, RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "📱", fontSize = 22.sp)
-            }
+                    modifier =
+                            Modifier.size(44.dp)
+                                    .background(FrictionColors.Surface2, RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+            ) { Text(text = "📱", fontSize = 22.sp) }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = app.displayName,
-                    fontSize = 14.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    color = FrictionColors.OnBackground
+                        text = app.displayName,
+                        fontSize = 14.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                        color = FrictionColors.OnBackground
                 )
                 Text(
-                    text = "${app.frictionMode.displayName} · ${if (app.isEnabled) "Active" else "Paused"}",
-                    fontSize = 11.sp,
-                    color = FrictionColors.Muted
+                        text =
+                                "${app.frictionMode.displayName} · ${if (app.isEnabled) "Active" else "Paused"}",
+                        fontSize = 11.sp,
+                        color = FrictionColors.Muted
+                )
+            }
+
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp).padding(end = 4.dp)) {
+                Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Remove App",
+                        tint = FrictionColors.Muted.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
                 )
             }
 
             Switch(
-                checked = app.isEnabled,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.Black,
-                    checkedTrackColor = FrictionColors.Accent,
-                    uncheckedThumbColor = FrictionColors.Muted,
-                    uncheckedTrackColor = FrictionColors.Surface2
-                )
+                    checked = app.isEnabled,
+                    onCheckedChange = onToggle,
+                    colors =
+                            SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = FrictionColors.Accent,
+                                    uncheckedThumbColor = FrictionColors.Muted,
+                                    uncheckedTrackColor = FrictionColors.Surface2
+                            )
             )
         }
     }
@@ -270,25 +267,25 @@ fun AppRow(
 @Composable
 fun AccessibilityWarningCard(onClick: () -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0x14FFAA00)),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFAA00)),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+            colors = CardDefaults.cardColors(containerColor = Color(0x14FFAA00)),
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFAA00)),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("⚠️", fontSize = 20.sp)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Accessibility Service Disabled",
-                    fontSize = 13.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    color = Color(0xFFFFAA00)
+                        text = "Accessibility Service Disabled",
+                        fontSize = 13.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        color = Color(0xFFFFAA00)
                 )
                 Text(
-                    text = "Tap to enable — required for app interception",
-                    fontSize = 11.sp,
-                    color = FrictionColors.Muted
+                        text = "Tap to enable — required for app interception",
+                        fontSize = 11.sp,
+                        color = FrictionColors.Muted
                 )
             }
         }
@@ -298,41 +295,37 @@ fun AccessibilityWarningCard(onClick: () -> Unit) {
 @Composable
 fun EmptyState(onAdd: () -> Unit) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp)
     ) {
         Text("🎯", fontSize = 48.sp)
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No apps protected yet",
-            fontSize = 16.sp,
-            color = FrictionColors.OnBackground
-        )
+        Text(text = "No apps protected yet", fontSize = 16.sp, color = FrictionColors.OnBackground)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Add your first doomscrolling app\nand start reclaiming your time.",
-            fontSize = 13.sp,
-            color = FrictionColors.Muted,
-            textAlign = TextAlign.Center,
-            lineHeight = 20.sp
+                text = "Add your first doomscrolling app\nand start reclaiming your time.",
+                fontSize = 13.sp,
+                color = FrictionColors.Muted,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
-            onClick = onAdd,
-            colors = ButtonDefaults.buttonColors(containerColor = FrictionColors.Accent),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("+ Add First App", color = Color.Black, fontFamily = FontFamily.Monospace)
-        }
+                onClick = onAdd,
+                colors = ButtonDefaults.buttonColors(containerColor = FrictionColors.Accent),
+                shape = RoundedCornerShape(12.dp)
+        ) { Text("+ Add First App", color = Color.Black, fontFamily = FontFamily.Monospace) }
     }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-val FrictionMode.displayName: String get() = when (this) {
-    FrictionMode.BREATHING -> "Breathing"
-    FrictionMode.TYPING    -> "Typing"
-    FrictionMode.MATH      -> "Math Mode"
-    FrictionMode.WALK      -> "Walk Mode"
-    FrictionMode.STRICT    -> "Strict Mode"
-}
+val FrictionMode.displayName: String
+    get() =
+            when (this) {
+                FrictionMode.BREATHING -> "Breathing"
+                FrictionMode.TYPING -> "Typing"
+                FrictionMode.MATH -> "Math Mode"
+                FrictionMode.WALK -> "Walk Mode"
+                FrictionMode.STRICT -> "Strict Mode"
+            }

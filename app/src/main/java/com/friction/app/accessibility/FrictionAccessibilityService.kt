@@ -10,6 +10,8 @@ import com.friction.app.utils.UsageTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
@@ -27,7 +29,11 @@ class FrictionAccessibilityService : AccessibilityService() {
     private lateinit var usageTracker: UsageTracker
     private lateinit var scheduleChecker: ScheduleChecker
 
-    // Track the last intercepted package to avoid double-fired
+    // In-memory cache for instantaneous lookups
+    private val protectedAppsCache =
+            mutableMapOf<String, com.friction.app.data.model.ProtectedApp>()
+
+    // Track the last intercepted package for debouncing
     private var lastInterceptedPackage: String? = null
     private var lastInterceptTime: Long = 0
 
@@ -39,6 +45,19 @@ class FrictionAccessibilityService : AccessibilityService() {
         repository = AppRepository.getInstance(applicationContext)
         usageTracker = UsageTracker(applicationContext)
         scheduleChecker = ScheduleChecker()
+
+        // Keep the cache synced with the database
+        serviceScope.launch {
+            repository.getAllApps().collect { apps ->
+                val activeApps = apps.filter { it.isEnabled }
+                protectedAppsCache.clear()
+                activeApps.forEach { protectedAppsCache[it.packageName] = it }
+                android.util.Log.d(
+                        "FrictionService",
+                        "Cache updated: ${protectedAppsCache.keys.size} apps"
+                )
+            }
+        }
     }
 
     // Track if we are currently showing a wall to avoid multiple launches
@@ -76,9 +95,6 @@ class FrictionAccessibilityService : AccessibilityService() {
                 isWallActive = true
             } else {
                 // We left the previous app or the Wall
-                // CRITICAL FIX: If we just came from the Wall, DON'T clear anything yet.
-                // This prevents re-interception in cases where the target app is misidentified as a
-                // launcher.
                 if (currentForegroundPackage == this.packageName) {
                     android.util.Log.d(
                             "FrictionService",
@@ -91,7 +107,6 @@ class FrictionAccessibilityService : AccessibilityService() {
                     )
                     clearAllAllowedPackages()
                 } else if (currentForegroundPackage != null) {
-                    // We switched from one app to another (neither is Friction or Launcher)
                     android.util.Log.d(
                             "FrictionService",
                             "Switched from $currentForegroundPackage to $packageName. Clearing allowed state for previous app."
@@ -106,8 +121,7 @@ class FrictionAccessibilityService : AccessibilityService() {
         // Ignore our own app for the rest of the logic
         if (packageName == this.packageName) return
 
-        // If a wall is active, don't try to launch another one even if events come from the
-        // background app
+        // If a wall is active, don't try to launch another one
         if (isWallActive) {
             android.util.Log.d(
                     "FrictionService",
@@ -118,7 +132,7 @@ class FrictionAccessibilityService : AccessibilityService() {
 
         val now = System.currentTimeMillis()
 
-        // Check grace period
+        // Check grace period (Instant check)
         if (isPackageAllowed(packageName)) {
             android.util.Log.d(
                     "FrictionService",
@@ -133,52 +147,74 @@ class FrictionAccessibilityService : AccessibilityService() {
             return
         }
 
-        serviceScope.launch {
-            val protectedApp = repository.getProtectedApp(packageName)
-            if (protectedApp == null) {
-                android.util.Log.d("FrictionService", "Package $packageName is NOT protected")
-                return@launch
+        // SYNC CHECK: Use the cache for zero-delay interception
+        val protectedApp = protectedAppsCache[packageName]
+        if (protectedApp == null) {
+            return
+        }
+
+        android.util.Log.d("FrictionService", "Intercepting protected app: $packageName")
+
+        // IMMEDIATE LAUNCH: Don't wait for coroutines to start the activity
+        // This ensures the Wall hits BEFORE the target app can render its UI
+        val intent =
+                Intent(applicationContext, FrictionWallActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra(FrictionWallActivity.EXTRA_TARGET_PACKAGE, packageName)
+                    putExtra(FrictionWallActivity.EXTRA_APP_NAME, protectedApp.displayName)
+                    putExtra(
+                            FrictionWallActivity.EXTRA_FRICTION_MODE,
+                            protectedApp.frictionMode.name
+                    )
+                    // Note: Some extras like opensToday will be updated in background and passed if
+                    // needed,
+                    // or fetched by the Activity itself for most accurate data.
+                }
+
+        lastInterceptedPackage = packageName
+        lastInterceptTime = now
+        isWallActive = true // Set immediately to prevent double launch
+
+        // Small delay (increased to 100ms) to ensure the target app settles
+        serviceScope.launch(Dispatchers.Main) {
+            delay(100)
+            startActivity(intent)
+
+            // Failsafe: Reset isWallActive after 5 seconds if it hasn't been reset by other events.
+            // This prevents a permanent "locked" state if the Wall activity fails to launch
+            // or is immediately killed by the system.
+            delay(5000)
+            if (isWallActive && currentForegroundPackage != packageName) {
+                android.util.Log.w(
+                        "FrictionService",
+                        "Failsafe: Resetting isWallActive for $packageName"
+                )
+                isWallActive = false
             }
+        }
 
-            android.util.Log.d("FrictionService", "Intercepting protected app: $packageName")
-
+        // Run non-critical data fetching Tasks in background
+        serviceScope.launch {
             // Check if strict mode schedule is blocking this app
             val isStrictModeActive = scheduleChecker.isStrictModeActive(protectedApp)
-            android.util.Log.d("FrictionService", "Strict mode active: $isStrictModeActive")
 
             // Count opens today for incremental timer
             val opensToday = repository.getOpensToday(packageName)
-            android.util.Log.d("FrictionService", "Opens today for $packageName: $opensToday")
 
             // Count opens in the last hour for roast mode
             val opensInLastHour = usageTracker.getOpensInLastHour(packageName)
 
-            // Record this interception attempt (local tracker for roast mode)
+            // Record this interception attempt
             usageTracker.recordOpen(packageName)
-
-            lastInterceptedPackage = packageName
-            lastInterceptTime = now
 
             android.util.Log.d(
                     "FrictionService",
-                    "Launching Friction Wall for $packageName with ${5 + (opensToday * 5)}s timer"
+                    "Background tasks completed for $packageName. Opens: $opensToday, Strict: $isStrictModeActive"
             )
 
-            // Launch the friction wall
-            val intent =
-                    Intent(applicationContext, FrictionWallActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                        putExtra(FrictionWallActivity.EXTRA_TARGET_PACKAGE, packageName)
-                        putExtra(FrictionWallActivity.EXTRA_APP_NAME, protectedApp.displayName)
-                        putExtra(
-                                FrictionWallActivity.EXTRA_FRICTION_MODE,
-                                protectedApp.frictionMode.name
-                        )
-                        putExtra(FrictionWallActivity.EXTRA_IS_STRICT_MODE, isStrictModeActive)
-                        putExtra(FrictionWallActivity.EXTRA_OPENS_IN_HOUR, opensInLastHour)
-                        putExtra(FrictionWallActivity.EXTRA_OPENS_TODAY, opensToday)
-                    }
-            applicationContext.startActivity(intent)
+            // Note: In a more robust implementation, we might send an update to the Wall
+            // if strict mode status or open counts change what should be displayed.
+            // For now, immediate launch with base info is the priority.
         }
     }
 
