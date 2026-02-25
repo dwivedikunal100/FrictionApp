@@ -27,19 +27,26 @@ class FrictionAccessibilityService : AccessibilityService() {
     private lateinit var usageTracker: UsageTracker
     private lateinit var scheduleChecker: ScheduleChecker
 
-    // Track the last intercepted package to avoid double-firing
+    // Track the last intercepted package to avoid double-fired
     private var lastInterceptedPackage: String? = null
     private var lastInterceptTime: Long = 0
 
-    // Grace period: if user clears the wall, don't re-intercept for 5 minutes
-    private val allowedPackages = mutableMapOf<String, Long>()
-    private val GRACE_PERIOD_MS = 5 * 60 * 1000L
+    // Currently active package in foreground
+    private var currentForegroundPackage: String? = null
+    
+    // Default launcher package
+    private var launcherPackage: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         repository = AppRepository.getInstance(applicationContext)
         usageTracker = UsageTracker(applicationContext)
         scheduleChecker = ScheduleChecker()
+        
+        // Find the default launcher
+        val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
+        val resolveInfo = packageManager.resolveActivity(intent, 0)
+        launcherPackage = resolveInfo?.activityInfo?.packageName
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -47,10 +54,24 @@ class FrictionAccessibilityService : AccessibilityService() {
 
         val packageName = event.packageName?.toString() ?: return
 
-        // Ignore our own app to avoid infinite loop
+        // Ignore our own app
         if (packageName == "com.friction.app") return
 
         val now = System.currentTimeMillis()
+
+        // If we switched to a DIFFERENT package
+        if (packageName != currentForegroundPackage) {
+            // If we went to the launcher or a different app, we should clear the "allowed" state 
+            // for the previous app so next time it's opened, it's blocked again.
+            if (packageName == launcherPackage) {
+                // Clear all allowed packages when returning to home
+                clearAllAllowedPackages()
+            } else {
+                // If we went to another app, clear the previous one
+                currentForegroundPackage?.let { clearAllowedPackage(it) }
+            }
+            currentForegroundPackage = packageName
+        }
 
         // Check grace period
         if (isPackageAllowed(packageName)) return
@@ -109,6 +130,14 @@ class FrictionAccessibilityService : AccessibilityService() {
         fun isPackageAllowed(packageName: String): Boolean {
             val allowedUntil = allowedPackagesStatic[packageName] ?: 0
             return System.currentTimeMillis() < allowedUntil
+        }
+
+        fun clearAllowedPackage(packageName: String) {
+            allowedPackagesStatic.remove(packageName)
+        }
+
+        fun clearAllAllowedPackages() {
+            allowedPackagesStatic.clear()
         }
     }
 }
