@@ -46,6 +46,7 @@ class FrictionWallActivity : ComponentActivity() {
         const val EXTRA_FRICTION_MODE = "friction_mode"
         const val EXTRA_IS_STRICT_MODE = "is_strict_mode"
         const val EXTRA_OPENS_IN_HOUR = "opens_in_hour"
+        const val EXTRA_OPENS_TODAY = "opens_today"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,9 +58,13 @@ class FrictionWallActivity : ComponentActivity() {
             ?.let { FrictionMode.valueOf(it) } ?: FrictionMode.BREATHING
         val isStrictMode = intent.getBooleanExtra(EXTRA_IS_STRICT_MODE, false)
         val opensInHour = intent.getIntExtra(EXTRA_OPENS_IN_HOUR, 0)
+        val opensToday = intent.getIntExtra(EXTRA_OPENS_TODAY, 0)
 
         val wallStartTime = System.currentTimeMillis()
         val roastMessage = if (opensInHour >= 5) RoastMessages.getRandom() else null
+        
+        // Timer increases by 5s for each open today (5, 10, 15...)
+        val timerDuration = 5 + (opensToday * 5)
 
         setContent {
             FrictionTheme {
@@ -69,16 +74,14 @@ class FrictionWallActivity : ComponentActivity() {
                     isStrictMode = isStrictMode,
                     opensInHour = opensInHour,
                     roastMessage = roastMessage,
+                    initialTimerSeconds = timerDuration,
                     onAllowAccess = {
                         val timeSpent = System.currentTimeMillis() - wallStartTime
-                        // Record the interception event
-                        // (fire-and-forget, don't block UI)
-                        val repo = AppRepository.getInstance(applicationContext)
-                        // recordInterception is a suspend fn, use a scope
+                        // Allow for 5 minutes
+                        com.friction.app.accessibility.FrictionAccessibilityService.allowPackage(targetPackage)
                         finish()
                     },
                     onDismiss = {
-                        // User chose NOT to proceed - go to home
                         finish()
                     }
                 )
@@ -94,6 +97,7 @@ fun FrictionWallScreen(
     isStrictMode: Boolean,
     opensInHour: Int,
     roastMessage: String?,
+    initialTimerSeconds: Int,
     onAllowAccess: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -149,10 +153,10 @@ fun FrictionWallScreen(
             // The friction challenge
             when {
                 isStrictMode -> StrictModeBlock()
-                frictionMode == FrictionMode.BREATHING -> BreathingChallenge(onComplete = onAllowAccess)
+                frictionMode == FrictionMode.BREATHING -> BreathingChallenge(seconds = initialTimerSeconds, onComplete = onAllowAccess)
                 frictionMode == FrictionMode.MATH -> MathChallenge(onComplete = onAllowAccess)
                 frictionMode == FrictionMode.TYPING -> TypingChallenge(onComplete = onAllowAccess)
-                else -> BreathingChallenge(onComplete = onAllowAccess)
+                else -> BreathingChallenge(seconds = initialTimerSeconds, onComplete = onAllowAccess)
             }
 
             // Roast message (if opened too many times)
@@ -179,8 +183,8 @@ fun FrictionWallScreen(
 // ── Breathing Challenge ──────────────────────────────────────────────────────
 
 @Composable
-fun BreathingChallenge(onComplete: () -> Unit) {
-    var secondsLeft by remember { mutableIntStateOf(5) }
+fun BreathingChallenge(seconds: Int, onComplete: () -> Unit) {
+    var secondsLeft by remember { mutableIntStateOf(seconds) }
     val breatheScale by rememberInfiniteTransition(label = "breathe").animateFloat(
         initialValue = 0.85f,
         targetValue = 1.1f,

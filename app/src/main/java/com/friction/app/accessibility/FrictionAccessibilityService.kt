@@ -31,6 +31,10 @@ class FrictionAccessibilityService : AccessibilityService() {
     private var lastInterceptedPackage: String? = null
     private var lastInterceptTime: Long = 0
 
+    // Grace period: if user clears the wall, don't re-intercept for 5 minutes
+    private val allowedPackages = mutableMapOf<String, Long>()
+    private val GRACE_PERIOD_MS = 5 * 60 * 1000L
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         repository = AppRepository.getInstance(applicationContext)
@@ -46,8 +50,12 @@ class FrictionAccessibilityService : AccessibilityService() {
         // Ignore our own app to avoid infinite loop
         if (packageName == "com.friction.app") return
 
-        // Debounce: don't intercept same app twice within 2 seconds
         val now = System.currentTimeMillis()
+
+        // Check grace period
+        if (isPackageAllowed(packageName)) return
+
+        // Debounce: don't intercept same app twice within 2 seconds
         if (packageName == lastInterceptedPackage && (now - lastInterceptTime) < 2000) return
 
         serviceScope.launch {
@@ -55,6 +63,9 @@ class FrictionAccessibilityService : AccessibilityService() {
 
             // Check if strict mode schedule is blocking this app
             val isStrictModeActive = scheduleChecker.isStrictModeActive(protectedApp)
+
+            // Count opens today for incremental timer
+            val opensToday = repository.getOpensToday(packageName)
 
             // Count opens in the last hour for roast mode
             val opensInLastHour = usageTracker.getOpensInLastHour(packageName)
@@ -73,12 +84,31 @@ class FrictionAccessibilityService : AccessibilityService() {
                 putExtra(FrictionWallActivity.EXTRA_FRICTION_MODE, protectedApp.frictionMode.name)
                 putExtra(FrictionWallActivity.EXTRA_IS_STRICT_MODE, isStrictModeActive)
                 putExtra(FrictionWallActivity.EXTRA_OPENS_IN_HOUR, opensInLastHour)
+                putExtra(FrictionWallActivity.EXTRA_OPENS_TODAY, opensToday)
             }
             applicationContext.startActivity(intent)
+
+            // For now, we assume if the wall finishes, it's allowed.
+            // In a more robust implementation, the Activity could notify the Service.
+            // Since they are in the same process, we can use a static singleton or broadcast.
+            // Let's use a simple static map for communication.
         }
     }
 
     override fun onInterrupt() {
         // Service interrupted (e.g. user disabled it)
+    }
+
+    companion object {
+        private val allowedPackagesStatic = mutableMapOf<String, Long>()
+        
+        fun allowPackage(packageName: String) {
+            allowedPackagesStatic[packageName] = System.currentTimeMillis() + 5 * 60 * 1000L
+        }
+        
+        fun isPackageAllowed(packageName: String): Boolean {
+            val allowedUntil = allowedPackagesStatic[packageName] ?: 0
+            return System.currentTimeMillis() < allowedUntil
+        }
     }
 }

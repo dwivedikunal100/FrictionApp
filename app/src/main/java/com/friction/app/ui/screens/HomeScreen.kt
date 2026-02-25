@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
-// ─── ViewModel ───────────────────────────────────────────────────────────────
+import com.friction.app.utils.PermissionUtils
 
 class HomeViewModel(private val repository: AppRepository) : ViewModel() {
 
@@ -117,10 +117,8 @@ fun HomeScreen(
                 appCount = apps.count { it.isEnabled }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
-
             // Accessibility service warning (if not enabled)
-            if (!isAccessibilityServiceEnabled(context)) {
+            if (!PermissionUtils.isAccessibilityServiceEnabled(context)) {
                 AccessibilityWarningCard {
                     context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }
@@ -330,15 +328,6 @@ fun EmptyState(onAdd: () -> Unit) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-fun isAccessibilityServiceEnabled(context: android.content.Context): Boolean {
-    val serviceName = "${context.packageName}/.accessibility.FrictionAccessibilityService"
-    val enabledServices = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: return false
-    return enabledServices.contains(serviceName)
-}
 
 val FrictionMode.displayName: String get() = when (this) {
     FrictionMode.BREATHING -> "Breathing"

@@ -80,8 +80,32 @@ class BootReceiver : android.content.BroadcastReceiver() {
     override fun onReceive(context: Context, intent: android.content.Intent) {
         if (intent.action == android.content.Intent.ACTION_BOOT_COMPLETED) {
             // The AccessibilityService is managed by Android directly
-            // if the user has granted it in Settings - no extra work needed.
-            // This receiver is a placeholder for any future startup logic.
         }
+    }
+}
+
+/**
+ * Robust permission checks moved to a central location.
+ */
+object PermissionUtils {
+    fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        // Correct format: "package.name/package.name.ClassName"
+        val expectedService = "${context.packageName}/com.friction.app.accessibility.FrictionAccessibilityService"
+        val enabledServices = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        return enabledServices.split(':').any { it.equals(expectedService, ignoreCase = true) }
+    }
+
+    fun isUsageStatsEnabled(context: Context): Boolean {
+        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            context.packageName
+        )
+        return mode == android.app.AppOpsManager.MODE_ALLOWED
     }
 }

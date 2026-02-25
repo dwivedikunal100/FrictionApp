@@ -37,6 +37,17 @@ class AppRepository private constructor(context: Context) {
 
     suspend fun recordInterception(event: InterceptionEvent) = eventDao.insert(event)
 
+    suspend fun getOpensToday(packageName: String): Int {
+        val startOfDay = System.currentTimeMillis().let {
+            val cal = java.util.Calendar.getInstance()
+            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            cal.set(java.util.Calendar.MINUTE, 0)
+            cal.set(java.util.Calendar.SECOND, 0)
+            cal.timeInMillis
+        }
+        return eventDao.countOpens(packageName, startOfDay)
+    }
+
     suspend fun getOpensInLastHour(packageName: String): Int {
         val oneHourAgo = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)
         return eventDao.countOpens(packageName, oneHourAgo)
