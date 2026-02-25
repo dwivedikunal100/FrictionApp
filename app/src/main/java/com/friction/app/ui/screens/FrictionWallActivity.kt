@@ -91,6 +91,7 @@ class FrictionWallActivity : ComponentActivity() {
                                 var opensToday by remember { mutableIntStateOf(0) }
                                 var timerDuration by remember { mutableIntStateOf(5) }
                                 var roastMessage by remember { mutableStateOf<String?>(null) }
+                                var dataLoaded by remember { mutableStateOf(false) }
 
                                 var wallStartTime by remember {
                                         mutableLongStateOf(System.currentTimeMillis())
@@ -129,70 +130,77 @@ class FrictionWallActivity : ComponentActivity() {
                                                                                 RoastMessages
                                                                                         .getRandom()
                                                                 }
+                                                                dataLoaded = true
                                                         }
                                                 }
                                         }
                                 }
 
-                                FrictionWallScreen(
-                                        appName = appName,
-                                        frictionMode = frictionMode,
-                                        isStrictMode = isStrictMode,
-                                        opensInHour = opensInHour,
-                                        roastMessage = roastMessage,
-                                        initialTimerSeconds = timerDuration,
-                                        onAllowAccess = {
-                                                val timeSpent =
-                                                        System.currentTimeMillis() - wallStartTime
-                                                android.util.Log.d(
-                                                        "FrictionWall",
-                                                        "onAllowAccess called for $targetPackage"
-                                                )
-
-                                                // Record the successful interception event
-                                                val repo =
-                                                        AppRepository.getInstance(
-                                                                applicationContext
+                                if (dataLoaded) {
+                                        FrictionWallScreen(
+                                                appName = appName,
+                                                frictionMode = frictionMode,
+                                                isStrictMode = isStrictMode,
+                                                opensInHour = opensInHour,
+                                                roastMessage = roastMessage,
+                                                initialTimerSeconds = timerDuration,
+                                                onAllowAccess = {
+                                                        val timeSpent =
+                                                                System.currentTimeMillis() -
+                                                                        wallStartTime
+                                                        android.util.Log.d(
+                                                                "FrictionWall",
+                                                                "onAllowAccess called for $targetPackage"
                                                         )
-                                                val scope =
-                                                        kotlinx.coroutines.CoroutineScope(
-                                                                kotlinx.coroutines.Dispatchers.IO
-                                                        )
-                                                scope.launch {
-                                                        repo.recordInterception(
-                                                                com.friction.app.data.model
-                                                                        .InterceptionEvent(
-                                                                                packageName =
-                                                                                        targetPackage,
-                                                                                wasAllowed = true,
-                                                                                timeSpentOnWall =
-                                                                                        timeSpent,
-                                                                                frictionMode =
-                                                                                        frictionMode
-                                                                        )
-                                                        )
-                                                }
 
-                                                // Allow for 5 minutes
-                                                com.friction.app.accessibility
-                                                        .FrictionAccessibilityService.allowPackage(
-                                                        targetPackage
-                                                )
+                                                        // Record the successful interception event
+                                                        val repo =
+                                                                AppRepository.getInstance(
+                                                                        applicationContext
+                                                                )
+                                                        val scope =
+                                                                kotlinx.coroutines.CoroutineScope(
+                                                                        kotlinx.coroutines
+                                                                                .Dispatchers.IO
+                                                                )
+                                                        scope.launch {
+                                                                repo.recordInterception(
+                                                                        com.friction.app.data.model
+                                                                                .InterceptionEvent(
+                                                                                        packageName =
+                                                                                                targetPackage,
+                                                                                        wasAllowed =
+                                                                                                true,
+                                                                                        timeSpentOnWall =
+                                                                                                timeSpent,
+                                                                                        frictionMode =
+                                                                                                frictionMode
+                                                                                )
+                                                                )
+                                                        }
 
-                                                // Small delay to show the "Success" state
-                                                scope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                                                        delay(800)
+                                                        // Allow for 5 minutes
+                                                        com.friction.app.accessibility
+                                                                .FrictionAccessibilityService
+                                                                .allowPackage(targetPackage)
+
+                                                        // Small delay to show the "Success" state
+                                                        scope.launch(
+                                                                kotlinx.coroutines.Dispatchers.Main
+                                                        ) {
+                                                                delay(800)
+                                                                finish()
+                                                        }
+                                                },
+                                                onDismiss = {
+                                                        android.util.Log.d(
+                                                                "FrictionWall",
+                                                                "Wall dismissed for $targetPackage"
+                                                        )
                                                         finish()
                                                 }
-                                        },
-                                        onDismiss = {
-                                                android.util.Log.d(
-                                                        "FrictionWall",
-                                                        "Wall dismissed for $targetPackage"
-                                                )
-                                                finish()
-                                        }
-                                )
+                                        )
+                                } // end if (dataLoaded)
                         }
                 }
         }
