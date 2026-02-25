@@ -60,8 +60,8 @@ Before publishing, set up these subscription products in Play Console:
 
 | Product ID | Price | Billing | Free Trial |
 |---|---|---|---|
-| `friction_premium_monthly` | $4.99 | Monthly | 3 days |
-| `friction_premium_annual` | $29.99 | Annual | 3 days |
+| `friction_premium_monthly` | ₹100 | Monthly | 3 days |
+| `friction_premium_annual` | ₹500 | Annual | 3 days |
 
 ### Step 5: Play Store Testing
 
@@ -152,7 +152,7 @@ Standard Friction: A 5-second breathing animation before the app opens.
 
 The "Roast" Screen: If they open the app more than 5 times in an hour, the app shows a passive-aggressive message (e.g., "Don't you have code to write?"). This is the highly shareable feature users will screenshot and post online.
 
-The Premium Tier ($4.99/mo or $29.99/year - The Money Maker)
+The Premium Tier (₹100/mo or ₹500/year - The Money Maker)
 
 Unlimited Apps: Block/add friction to as many apps as they want.
 
