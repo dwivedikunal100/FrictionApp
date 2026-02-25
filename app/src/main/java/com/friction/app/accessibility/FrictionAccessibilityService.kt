@@ -13,12 +13,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * The heart of Friction. This service runs in the background and intercepts
- * app launches by monitoring window state changes. When a "protected" app
- * is opened, it fires the FrictionWallActivity on top of it.
+ * The heart of Friction. This service runs in the background and intercepts app launches by
+ * monitoring window state changes. When a "protected" app is opened, it fires the
+ * FrictionWallActivity on top of it.
  *
- * Why AccessibilityService? It's the only reliable Android API that can
- * detect foreground app changes without polling (unlike UsageStatsManager).
+ * Why AccessibilityService? It's the only reliable Android API that can detect foreground app
+ * changes without polling (unlike UsageStatsManager).
  */
 class FrictionAccessibilityService : AccessibilityService() {
 
@@ -33,24 +33,26 @@ class FrictionAccessibilityService : AccessibilityService() {
 
     // Currently active package in foreground
     private var currentForegroundPackage: String? = null
-    
-    // Default launcher package
-    private var launcherPackage: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         repository = AppRepository.getInstance(applicationContext)
         usageTracker = UsageTracker(applicationContext)
         scheduleChecker = ScheduleChecker()
-        
-        // Find the default launcher
-        val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
-        val resolveInfo = packageManager.resolveActivity(intent, 0)
-        launcherPackage = resolveInfo?.activityInfo?.packageName
     }
 
     // Track if we are currently showing a wall to avoid multiple launches
     private var isWallActive = false
+
+    private fun isLauncher(pkg: String): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
+        val resolveInfos =
+                packageManager.queryIntentActivities(
+                        intent,
+                        android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+                )
+        return resolveInfos.any { it.activityInfo?.packageName == pkg }
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
@@ -60,20 +62,40 @@ class FrictionAccessibilityService : AccessibilityService() {
 
         // If we switched to a DIFFERENT package
         if (packageName != currentForegroundPackage) {
-            android.util.Log.d("FrictionService", "App switch detected: $currentForegroundPackage -> $packageName")
-            
+            android.util.Log.d(
+                    "FrictionService",
+                    "App switch detected: $currentForegroundPackage -> $packageName"
+            )
+
             // If we are moving to our own Wall, don't clear anything
             if (packageName == this.packageName) {
-                android.util.Log.d("FrictionService", "Switching to Friction Wall. Keeping allowed states.")
+                android.util.Log.d(
+                        "FrictionService",
+                        "Switching to Friction Wall. Keeping allowed states."
+                )
                 isWallActive = true
             } else {
                 // We left the previous app or the Wall
-                if (packageName == launcherPackage) {
-                    android.util.Log.d("FrictionService", "Returned to Home. Clearing all allowed states.")
+                // CRITICAL FIX: If we just came from the Wall, DON'T clear anything yet.
+                // This prevents re-interception in cases where the target app is misidentified as a
+                // launcher.
+                if (currentForegroundPackage == this.packageName) {
+                    android.util.Log.d(
+                            "FrictionService",
+                            "Transitioning from Wall back to $packageName. Preserving allowed states."
+                    )
+                } else if (isLauncher(packageName)) {
+                    android.util.Log.d(
+                            "FrictionService",
+                            "Returned to Home ($packageName). Clearing all allowed states."
+                    )
                     clearAllAllowedPackages()
-                } else if (currentForegroundPackage != this.packageName && currentForegroundPackage != null) {
+                } else if (currentForegroundPackage != null) {
                     // We switched from one app to another (neither is Friction or Launcher)
-                    android.util.Log.d("FrictionService", "Switched from $currentForegroundPackage to $packageName. Clearing allowed state.")
+                    android.util.Log.d(
+                            "FrictionService",
+                            "Switched from $currentForegroundPackage to $packageName. Clearing allowed state for previous app."
+                    )
                     clearAllowedPackage(currentForegroundPackage!!)
                 }
                 isWallActive = false
@@ -84,9 +106,13 @@ class FrictionAccessibilityService : AccessibilityService() {
         // Ignore our own app for the rest of the logic
         if (packageName == this.packageName) return
 
-        // If a wall is active, don't try to launch another one even if events come from the background app
+        // If a wall is active, don't try to launch another one even if events come from the
+        // background app
         if (isWallActive) {
-            android.util.Log.d("FrictionService", "Wall is currently active. Ignoring event for $packageName")
+            android.util.Log.d(
+                    "FrictionService",
+                    "Wall is currently active. Ignoring event for $packageName"
+            )
             return
         }
 
@@ -94,7 +120,10 @@ class FrictionAccessibilityService : AccessibilityService() {
 
         // Check grace period
         if (isPackageAllowed(packageName)) {
-            android.util.Log.d("FrictionService", "Package $packageName is currently allowed (grace period)")
+            android.util.Log.d(
+                    "FrictionService",
+                    "Package $packageName is currently allowed (grace period)"
+            )
             return
         }
 
@@ -130,18 +159,25 @@ class FrictionAccessibilityService : AccessibilityService() {
             lastInterceptedPackage = packageName
             lastInterceptTime = now
 
-            android.util.Log.d("FrictionService", "Launching Friction Wall for $packageName with ${5 + (opensToday * 5)}s timer")
+            android.util.Log.d(
+                    "FrictionService",
+                    "Launching Friction Wall for $packageName with ${5 + (opensToday * 5)}s timer"
+            )
 
             // Launch the friction wall
-            val intent = Intent(applicationContext, FrictionWallActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                putExtra(FrictionWallActivity.EXTRA_TARGET_PACKAGE, packageName)
-                putExtra(FrictionWallActivity.EXTRA_APP_NAME, protectedApp.displayName)
-                putExtra(FrictionWallActivity.EXTRA_FRICTION_MODE, protectedApp.frictionMode.name)
-                putExtra(FrictionWallActivity.EXTRA_IS_STRICT_MODE, isStrictModeActive)
-                putExtra(FrictionWallActivity.EXTRA_OPENS_IN_HOUR, opensInLastHour)
-                putExtra(FrictionWallActivity.EXTRA_OPENS_TODAY, opensToday)
-            }
+            val intent =
+                    Intent(applicationContext, FrictionWallActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        putExtra(FrictionWallActivity.EXTRA_TARGET_PACKAGE, packageName)
+                        putExtra(FrictionWallActivity.EXTRA_APP_NAME, protectedApp.displayName)
+                        putExtra(
+                                FrictionWallActivity.EXTRA_FRICTION_MODE,
+                                protectedApp.frictionMode.name
+                        )
+                        putExtra(FrictionWallActivity.EXTRA_IS_STRICT_MODE, isStrictModeActive)
+                        putExtra(FrictionWallActivity.EXTRA_OPENS_IN_HOUR, opensInLastHour)
+                        putExtra(FrictionWallActivity.EXTRA_OPENS_TODAY, opensToday)
+                    }
             applicationContext.startActivity(intent)
         }
     }
@@ -152,21 +188,25 @@ class FrictionAccessibilityService : AccessibilityService() {
 
     companion object {
         private val allowedPackagesStatic = mutableMapOf<String, Long>()
-        
+
         fun allowPackage(packageName: String) {
+            android.util.Log.d("FrictionService", "Allowing package: $packageName for 5 minutes")
             allowedPackagesStatic[packageName] = System.currentTimeMillis() + 5 * 60 * 1000L
         }
-        
+
         fun isPackageAllowed(packageName: String): Boolean {
             val allowedUntil = allowedPackagesStatic[packageName] ?: 0
-            return System.currentTimeMillis() < allowedUntil
+            val isAllowed = System.currentTimeMillis() < allowedUntil
+            return isAllowed
         }
 
         fun clearAllowedPackage(packageName: String) {
+            android.util.Log.d("FrictionService", "Clearing allowed state for: $packageName")
             allowedPackagesStatic.remove(packageName)
         }
 
         fun clearAllAllowedPackages() {
+            android.util.Log.d("FrictionService", "Clearing ALL allowed states")
             allowedPackagesStatic.clear()
         }
     }

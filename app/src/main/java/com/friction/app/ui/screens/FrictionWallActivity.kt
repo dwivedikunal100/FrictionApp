@@ -31,12 +31,12 @@ import kotlinx.coroutines.launch
 /**
  * FrictionWallActivity
  *
- * This is the overlay that appears when the user opens a protected app.
- * It's launched as a new task so it appears on TOP of the intercepted app.
- * The user must complete the friction challenge before they can proceed.
+ * This is the overlay that appears when the user opens a protected app. It's launched as a new task
+ * so it appears on TOP of the intercepted app. The user must complete the friction challenge before
+ * they can proceed.
  *
- * Key design decision: We use launchMode="singleTop" + excludeFromRecents
- * so it doesn't pollute the recents screen.
+ * Key design decision: We use launchMode="singleTop" + excludeFromRecents so it doesn't pollute the
+ * recents screen.
  */
 class FrictionWallActivity : ComponentActivity() {
 
@@ -52,62 +52,78 @@ class FrictionWallActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val targetPackage = intent.getStringExtra(EXTRA_TARGET_PACKAGE) ?: run { finish(); return }
+        val targetPackage =
+                intent.getStringExtra(EXTRA_TARGET_PACKAGE)
+                        ?: run {
+                            finish()
+                            return
+                        }
         val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: targetPackage
-        val frictionMode = intent.getStringExtra(EXTRA_FRICTION_MODE)
-            ?.let { FrictionMode.valueOf(it) } ?: FrictionMode.BREATHING
+        val frictionMode =
+                intent.getStringExtra(EXTRA_FRICTION_MODE)?.let { FrictionMode.valueOf(it) }
+                        ?: FrictionMode.BREATHING
         val isStrictMode = intent.getBooleanExtra(EXTRA_IS_STRICT_MODE, false)
         val opensInHour = intent.getIntExtra(EXTRA_OPENS_IN_HOUR, 0)
         val opensToday = intent.getIntExtra(EXTRA_OPENS_TODAY, 0)
 
         val wallStartTime = System.currentTimeMillis()
         val roastMessage = if (opensInHour >= 5) RoastMessages.getRandom() else null
-        
+
         // Timer increases by 5s for each open today (5, 10, 15...)
         val timerDuration = 5 + (opensToday * 5)
-        
-        android.util.Log.d("FrictionWall", "Wall opened for $targetPackage. Opens today: $opensToday, Timer: ${timerDuration}s")
+
+        android.util.Log.d(
+                "FrictionWall",
+                "Wall opened for $targetPackage. Opens today: $opensToday, Timer: ${timerDuration}s"
+        )
 
         setContent {
             FrictionTheme {
                 FrictionWallScreen(
-                    appName = appName,
-                    frictionMode = frictionMode,
-                    isStrictMode = isStrictMode,
-                    opensInHour = opensInHour,
-                    roastMessage = roastMessage,
-                    initialTimerSeconds = timerDuration,
-                    onAllowAccess = {
-                        val timeSpent = System.currentTimeMillis() - wallStartTime
-                        android.util.Log.d("FrictionWall", "onAllowAccess called for $targetPackage")
-                        
-                        // Record the successful interception event
-                        val repo = AppRepository.getInstance(applicationContext)
-                        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
-                        scope.launch {
-                            repo.recordInterception(
-                                com.friction.app.data.model.InterceptionEvent(
-                                    packageName = targetPackage,
-                                    wasAllowed = true,
-                                    timeSpentOnWall = timeSpent,
-                                    frictionMode = frictionMode
-                                )
+                        appName = appName,
+                        frictionMode = frictionMode,
+                        isStrictMode = isStrictMode,
+                        opensInHour = opensInHour,
+                        roastMessage = roastMessage,
+                        initialTimerSeconds = timerDuration,
+                        onAllowAccess = {
+                            val timeSpent = System.currentTimeMillis() - wallStartTime
+                            android.util.Log.d(
+                                    "FrictionWall",
+                                    "onAllowAccess called for $targetPackage"
                             )
-                        }
 
-                        // Allow for 5 minutes
-                        com.friction.app.accessibility.FrictionAccessibilityService.allowPackage(targetPackage)
-                        
-                        // Small delay to show the "Success" state
-                        scope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                            delay(800)
+                            // Record the successful interception event
+                            val repo = AppRepository.getInstance(applicationContext)
+                            val scope =
+                                    kotlinx.coroutines.CoroutineScope(
+                                            kotlinx.coroutines.Dispatchers.IO
+                                    )
+                            scope.launch {
+                                repo.recordInterception(
+                                        com.friction.app.data.model.InterceptionEvent(
+                                                packageName = targetPackage,
+                                                wasAllowed = true,
+                                                timeSpentOnWall = timeSpent,
+                                                frictionMode = frictionMode
+                                        )
+                                )
+                            }
+
+                            // Allow for 5 minutes
+                            com.friction.app.accessibility.FrictionAccessibilityService
+                                    .allowPackage(targetPackage)
+
+                            // Small delay to show the "Success" state
+                            scope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                delay(800)
+                                finish()
+                            }
+                        },
+                        onDismiss = {
+                            android.util.Log.d("FrictionWall", "Wall dismissed for $targetPackage")
                             finish()
                         }
-                    },
-                    onDismiss = {
-                        android.util.Log.d("FrictionWall", "Wall dismissed for $targetPackage")
-                        finish()
-                    }
                 )
             }
         }
@@ -116,129 +132,133 @@ class FrictionWallActivity : ComponentActivity() {
 
 @Composable
 fun FrictionWallScreen(
-    appName: String,
-    frictionMode: FrictionMode,
-    isStrictMode: Boolean,
-    opensInHour: Int,
-    roastMessage: String?,
-    initialTimerSeconds: Int,
-    onAllowAccess: () -> Unit,
-    onDismiss: () -> Unit
+        appName: String,
+        frictionMode: FrictionMode,
+        isStrictMode: Boolean,
+        opensInHour: Int,
+        roastMessage: String?,
+        initialTimerSeconds: Int,
+        onAllowAccess: () -> Unit,
+        onDismiss: () -> Unit
 ) {
     var isSolved by remember { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(FrictionColors.Background),
-        contentAlignment = Alignment.Center
+            modifier = Modifier.fillMaxSize().background(FrictionColors.Background),
+            contentAlignment = Alignment.Center
     ) {
         if (isSolved) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = "✓", fontSize = 80.sp, color = FrictionColors.Accent)
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "ACCESS GRANTED",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    letterSpacing = 4.sp,
-                    color = FrictionColors.Accent
+                        text = "ACCESS GRANTED",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        letterSpacing = 4.sp,
+                        color = FrictionColors.Accent
                 )
             }
         } else {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 32.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 32.dp)
             ) {
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // "Intercepted" label
-            Text(
-                text = "INTERCEPTED",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                letterSpacing = 4.sp,
-                color = FrictionColors.Muted
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // App name + heading
-            Text(
-                text = "Hold on,",
-                fontSize = 28.sp,
-                color = FrictionColors.OnBackground,
-                style = MaterialTheme.typography.headlineLarge
-            )
-            Text(
-                text = "really?",
-                fontSize = 28.sp,
-                color = FrictionColors.Accent,
-                style = MaterialTheme.typography.headlineLarge
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "You've opened $appName\n$opensInHour times in the last hour.",
-                fontSize = 14.sp,
-                color = FrictionColors.Muted,
-                textAlign = TextAlign.Center,
-                lineHeight = 22.sp
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            // The friction challenge
-            when {
-                isStrictMode -> StrictModeBlock()
-                frictionMode == FrictionMode.BREATHING -> BreathingChallenge(
-                    seconds = initialTimerSeconds, 
-                    onComplete = {
-                        isSolved = true
-                        onAllowAccess()
-                    }
-                )
-                frictionMode == FrictionMode.MATH -> MathChallenge(
-                    onComplete = {
-                        isSolved = true
-                        onAllowAccess()
-                    }
-                )
-                frictionMode == FrictionMode.TYPING -> TypingChallenge(
-                    onComplete = {
-                        isSolved = true
-                        onAllowAccess()
-                    }
-                )
-                else -> BreathingChallenge(
-                    seconds = initialTimerSeconds, 
-                    onComplete = {
-                        isSolved = true
-                        onAllowAccess()
-                    }
-                )
-            }
-
-            // Roast message (if opened too many times)
-            if (roastMessage != null) {
-                Spacer(modifier = Modifier.height(24.dp))
-                RoastCard(message = roastMessage)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Skip (lets user through, just records it)
-            if (!isStrictMode) {
+                // "Intercepted" label
                 Text(
-                    text = "I don't care, let me in →",
-                    fontSize = 12.sp,
-                    color = FrictionColors.Muted,
-                    modifier = Modifier.clickable { 
-                        isSolved = true
-                        onAllowAccess() 
-                    }
+                        text = "INTERCEPTED",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        letterSpacing = 4.sp,
+                        color = FrictionColors.Muted
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // App name + heading
+                Text(
+                        text = "Hold on,",
+                        fontSize = 28.sp,
+                        color = FrictionColors.OnBackground,
+                        style = MaterialTheme.typography.headlineLarge
+                )
+                Text(
+                        text = "really?",
+                        fontSize = 28.sp,
+                        color = FrictionColors.Accent,
+                        style = MaterialTheme.typography.headlineLarge
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                        text = "You've opened $appName\n$opensInHour times in the last hour.",
+                        fontSize = 14.sp,
+                        color = FrictionColors.Muted,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 22.sp
+                )
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                // The friction challenge
+                when {
+                    isStrictMode -> StrictModeBlock()
+                    frictionMode == FrictionMode.BREATHING ->
+                            BreathingChallenge(
+                                    seconds = initialTimerSeconds,
+                                    onComplete = {
+                                        isSolved = true
+                                        onAllowAccess()
+                                    }
+                            )
+                    frictionMode == FrictionMode.MATH ->
+                            MathChallenge(
+                                    onComplete = {
+                                        isSolved = true
+                                        onAllowAccess()
+                                    }
+                            )
+                    frictionMode == FrictionMode.TYPING ->
+                            TypingChallenge(
+                                    onComplete = {
+                                        isSolved = true
+                                        onAllowAccess()
+                                    }
+                            )
+                    else ->
+                            BreathingChallenge(
+                                    seconds = initialTimerSeconds,
+                                    onComplete = {
+                                        isSolved = true
+                                        onAllowAccess()
+                                    }
+                            )
+                }
+
+                // Roast message (if opened too many times)
+                if (roastMessage != null) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    RoastCard(message = roastMessage)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Skip (lets user through, just records it)
+                if (!isStrictMode) {
+                    Text(
+                            text = "I don't care, let me in →",
+                            fontSize = 12.sp,
+                            color = FrictionColors.Muted,
+                            modifier =
+                                    Modifier.clickable {
+                                        isSolved = true
+                                        onAllowAccess()
+                                    }
+                    )
+                }
             }
         }
     }
@@ -249,15 +269,18 @@ fun FrictionWallScreen(
 @Composable
 fun BreathingChallenge(seconds: Int, onComplete: () -> Unit) {
     var secondsLeft by remember { mutableIntStateOf(seconds) }
-    val breatheScale by rememberInfiniteTransition(label = "breathe").animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breathe_scale"
-    )
+    val breatheScale by
+            rememberInfiniteTransition(label = "breathe")
+                    .animateFloat(
+                            initialValue = 0.85f,
+                            targetValue = 1.1f,
+                            animationSpec =
+                                    infiniteRepeatable(
+                                            animation = tween(2000, easing = EaseInOutSine),
+                                            repeatMode = RepeatMode.Reverse
+                                    ),
+                            label = "breathe_scale"
+                    )
 
     LaunchedEffect(Unit) {
         while (secondsLeft > 0) {
@@ -268,50 +291,47 @@ fun BreathingChallenge(seconds: Int, onComplete: () -> Unit) {
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(160.dp)
-        ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
             // Outer ring
             Box(
-                modifier = Modifier
-                    .size(160.dp)
-                    .scale(breatheScale)
-                    .alpha(0.2f)
-                    .border(1.5.dp, FrictionColors.Accent, CircleShape)
+                    modifier =
+                            Modifier.size(160.dp)
+                                    .scale(breatheScale)
+                                    .alpha(0.2f)
+                                    .border(1.5.dp, FrictionColors.Accent, CircleShape)
             )
             // Middle ring
             Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .scale(breatheScale)
-                    .alpha(0.4f)
-                    .border(1.5.dp, FrictionColors.Accent, CircleShape)
+                    modifier =
+                            Modifier.size(120.dp)
+                                    .scale(breatheScale)
+                                    .alpha(0.4f)
+                                    .border(1.5.dp, FrictionColors.Accent, CircleShape)
             )
             // Inner filled circle with countdown
             Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(FrictionColors.AccentDim, CircleShape)
-                    .border(1.5.dp, FrictionColors.Accent, CircleShape)
+                    contentAlignment = Alignment.Center,
+                    modifier =
+                            Modifier.size(64.dp)
+                                    .background(FrictionColors.AccentDim, CircleShape)
+                                    .border(1.5.dp, FrictionColors.Accent, CircleShape)
             ) {
                 Text(
-                    text = secondsLeft.toString(),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 24.sp,
-                    color = FrictionColors.Accent,
-                    style = MaterialTheme.typography.titleLarge
+                        text = secondsLeft.toString(),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 24.sp,
+                        color = FrictionColors.Accent,
+                        style = MaterialTheme.typography.titleLarge
                 )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "BREATHE IN · HOLD · OUT",
-            fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
-            letterSpacing = 2.sp,
-            color = FrictionColors.Muted
+                text = "BREATHE IN · HOLD · OUT",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                letterSpacing = 2.sp,
+                color = FrictionColors.Muted
         )
     }
 }
@@ -321,13 +341,19 @@ fun BreathingChallenge(seconds: Int, onComplete: () -> Unit) {
 @Composable
 fun MathChallenge(onComplete: () -> Unit) {
     // Generate a random medium-difficulty equation
-    val (a, b, answer) = remember {
-        val pairs = listOf(
-            Triple(14, 8, 112), Triple(17, 6, 102), Triple(23, 7, 161),
-            Triple(9, 13, 117), Triple(15, 12, 180), Triple(8, 19, 152)
-        )
-        pairs.random()
-    }
+    val (a, b, answer) =
+            remember {
+                val pairs =
+                        listOf(
+                                Triple(14, 8, 112),
+                                Triple(17, 6, 102),
+                                Triple(23, 7, 161),
+                                Triple(9, 13, 117),
+                                Triple(15, 12, 180),
+                                Triple(8, 19, 152)
+                        )
+                pairs.random()
+            }
 
     var userInput by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
@@ -336,41 +362,41 @@ fun MathChallenge(onComplete: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // Equation card
         Card(
-            colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
-            shape = RoundedCornerShape(20.dp),
-            modifier = Modifier.fillMaxWidth()
+                colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(28.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(28.dp)
             ) {
                 Text(
-                    text = "SOLVE TO CONTINUE",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 9.sp,
-                    letterSpacing = 3.sp,
-                    color = FrictionColors.Muted
+                        text = "SOLVE TO CONTINUE",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        letterSpacing = 3.sp,
+                        color = FrictionColors.Muted
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "$a × ",
-                    fontSize = 40.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = FrictionColors.OnBackground,
-                    style = MaterialTheme.typography.displayMedium
+                        text = "$a × ",
+                        fontSize = 40.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = FrictionColors.OnBackground,
+                        style = MaterialTheme.typography.displayMedium
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "$b",
-                        fontSize = 40.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = FrictionColors.Accent
+                            text = "$b",
+                            fontSize = 40.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = FrictionColors.Accent
                     )
                     Text(
-                        text = " = ?",
-                        fontSize = 40.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = FrictionColors.OnBackground
+                            text = " = ?",
+                            fontSize = 40.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = FrictionColors.OnBackground
                     )
                 }
             }
@@ -380,47 +406,48 @@ fun MathChallenge(onComplete: () -> Unit) {
 
         // Input field
         OutlinedTextField(
-            value = userInput,
-            onValueChange = { userInput = it.filter { c -> c.isDigit() } },
-            placeholder = { Text("Your answer", color = FrictionColors.Muted) },
-            isError = isError,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = FrictionColors.Accent,
-                unfocusedBorderColor = FrictionColors.Border,
-                errorBorderColor = Color(0xFFFF4D4D),
-                focusedTextColor = FrictionColors.OnBackground,
-                unfocusedTextColor = FrictionColors.OnBackground,
-                cursorColor = FrictionColors.Accent
-            ),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+                value = userInput,
+                onValueChange = { userInput = it.filter { c -> c.isDigit() } },
+                placeholder = { Text("Your answer", color = FrictionColors.Muted) },
+                isError = isError,
+                colors =
+                        OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = FrictionColors.Accent,
+                                unfocusedBorderColor = FrictionColors.Border,
+                                errorBorderColor = Color(0xFFFF4D4D),
+                                focusedTextColor = FrictionColors.OnBackground,
+                                unfocusedTextColor = FrictionColors.OnBackground,
+                                cursorColor = FrictionColors.Accent
+                        ),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = {
-                if (userInput.toIntOrNull() == answer) {
-                    onComplete()
-                } else {
-                    isError = true
-                    scope.launch {
-                        delay(800)
-                        isError = false
-                        userInput = ""
+                onClick = {
+                    if (userInput.toIntOrNull() == answer) {
+                        onComplete()
+                    } else {
+                        isError = true
+                        scope.launch {
+                            delay(800)
+                            isError = false
+                            userInput = ""
+                        }
                     }
-                }
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = FrictionColors.Accent),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = FrictionColors.Accent),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
             Text(
-                text = "SUBMIT →",
-                color = Color.Black,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp
+                    text = "SUBMIT →",
+                    color = Color.Black,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp
             )
         }
     }
@@ -442,40 +469,41 @@ fun TypingChallenge(onComplete: () -> Unit) {
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
+                colors = CardDefaults.cardColors(containerColor = FrictionColors.Surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "\"$phrase\"",
-                fontSize = 16.sp,
-                color = FrictionColors.OnBackground,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(20.dp),
-                lineHeight = 26.sp
+                    text = "\"$phrase\"",
+                    fontSize = 16.sp,
+                    color = FrictionColors.OnBackground,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(20.dp),
+                    lineHeight = 26.sp
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "TYPE THE ABOVE TO CONTINUE",
-            fontFamily = FontFamily.Monospace,
-            fontSize = 9.sp,
-            letterSpacing = 2.sp,
-            color = FrictionColors.Muted
+                text = "TYPE THE ABOVE TO CONTINUE",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 9.sp,
+                letterSpacing = 2.sp,
+                color = FrictionColors.Muted
         )
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
-            value = userInput,
-            onValueChange = { userInput = it },
-            placeholder = { Text("Start typing...", color = FrictionColors.Muted) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = FrictionColors.Accent,
-                unfocusedBorderColor = FrictionColors.Border,
-                focusedTextColor = FrictionColors.OnBackground,
-                unfocusedTextColor = FrictionColors.OnBackground
-            ),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+                value = userInput,
+                onValueChange = { userInput = it },
+                placeholder = { Text("Start typing...", color = FrictionColors.Muted) },
+                colors =
+                        OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = FrictionColors.Accent,
+                                unfocusedBorderColor = FrictionColors.Border,
+                                focusedTextColor = FrictionColors.OnBackground,
+                                unfocusedTextColor = FrictionColors.OnBackground
+                        ),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
         )
     }
 }
@@ -485,31 +513,32 @@ fun TypingChallenge(onComplete: () -> Unit) {
 @Composable
 fun StrictModeBlock() {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0x14FF4D4D)),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FF4D4D)),
-        modifier = Modifier.fillMaxWidth()
+            colors = CardDefaults.cardColors(containerColor = Color(0x14FF4D4D)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FF4D4D)),
+            modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(24.dp)
         ) {
             Text(text = "🔒", fontSize = 32.sp)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "STRICT MODE ACTIVE",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                letterSpacing = 3.sp,
-                color = Color(0xFFFF4D4D)
+                    text = "STRICT MODE ACTIVE",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    letterSpacing = 3.sp,
+                    color = Color(0xFFFF4D4D)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "You cannot open this app during work hours.\nYou set this rule. We're enforcing it.",
-                fontSize = 13.sp,
-                color = FrictionColors.Muted,
-                textAlign = TextAlign.Center,
-                lineHeight = 20.sp
+                    text =
+                            "You cannot open this app during work hours.\nYou set this rule. We're enforcing it.",
+                    fontSize = 13.sp,
+                    color = FrictionColors.Muted,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
             )
         }
     }
@@ -520,26 +549,21 @@ fun StrictModeBlock() {
 @Composable
 fun RoastCard(message: String) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0x14FF4D4D)),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FF4D4D)),
-        modifier = Modifier.fillMaxWidth()
+            colors = CardDefaults.cardColors(containerColor = Color(0x14FF4D4D)),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FF4D4D)),
+            modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "// ROAST MODE",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                letterSpacing = 3.sp,
-                color = Color(0xFFFF4D4D)
+                    text = "// ROAST MODE",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    letterSpacing = 3.sp,
+                    color = Color(0xFFFF4D4D)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = message,
-                fontSize = 12.sp,
-                color = Color(0xFFFF7070),
-                lineHeight = 20.sp
-            )
+            Text(text = message, fontSize = 12.sp, color = Color(0xFFFF7070), lineHeight = 20.sp)
         }
     }
 }
